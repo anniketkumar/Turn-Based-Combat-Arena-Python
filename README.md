@@ -7,7 +7,6 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![OOP](https://img.shields.io/badge/OOP-SOLID_Principles-blueviolet?style=for-the-badge)
 ![CLI](https://img.shields.io/badge/Interface-CLI-green?style=for-the-badge&logo=windowsterminal&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
 A fully object-oriented, command-line turn-based combat engine built from the ground up with **strict SOLID adherence**, **abstract base classes**, and a clean **Boundary–Control–Entity** architecture. Players choose a hero class, equip a consumable item, and battle through three increasingly brutal levels — complete with wave-based backup spawning, a dynamic status-effect system, and speed-based turn ordering — all powered by an engine that never touches a single concrete class.
 
