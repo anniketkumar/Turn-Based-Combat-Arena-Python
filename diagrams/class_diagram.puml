@@ -1,0 +1,368 @@
+@startuml CombatArena_ClassDiagram
+
+' ============================================================================
+'  THEME & LAYOUT
+' ============================================================================
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 50
+
+skinparam class {
+    BackgroundColor<<abstract>> #E8EAF6
+    BorderColor<<abstract>> #3F51B5
+    BackgroundColor<<concrete>> #E8F5E9
+    BorderColor<<concrete>> #388E3C
+    BackgroundColor<<engine>> #FFF3E0
+    BorderColor<<engine>> #E65100
+    BackgroundColor<<boundary>> #FCE4EC
+    BorderColor<<boundary>> #C62828
+}
+
+title **Turn-Based Combat Arena — UML Class Diagram**
+
+' ============================================================================
+'  LAYER 1 — DOMAIN / ABSTRACTIONS  (interfaces.py)
+' ============================================================================
+package "Domain Layer — Abstractions (interfaces.py)" <<Rectangle>> #ECEFF1 {
+
+    abstract class StatusEffect <<abstract>> {
+        + {abstract} name : str
+        + {abstract} remaining_turns : int
+        + is_expired : bool
+        --
+        + {abstract} on_apply(target: Combatant) : str
+        + {abstract} on_turn_start(target: Combatant) : Optional[str]
+        + {abstract} on_turn_end(target: Combatant) : Optional[str]
+        + {abstract} on_remove(target: Combatant) : Optional[str]
+        + {abstract} tick() : void
+    }
+
+    abstract class Combatant <<abstract>> {
+        - _name : str
+        - _max_hp : int
+        - _hp : int
+        - _base_attack : int
+        - _base_defense : int
+        - _speed : int
+        - _status_effects : List[StatusEffect]
+        --
+        + name : str
+        + max_hp : int
+        + hp : int
+        + attack : int
+        + defense : int  <<computed with effects>>
+        + speed : int
+        + is_alive : bool
+        --
+        + take_damage(amount: int) : int
+        + heal(amount: int) : int
+        + add_status_effect(effect: StatusEffect) : str
+        + remove_expired_effects() : List[str]
+        + has_effect(effect_name: str) : bool
+        + {abstract} choose_action(allies, enemies, ctx) : ActionDecision
+    }
+
+    abstract class Action <<abstract>> {
+        + {abstract} name : str
+        --
+        + {abstract} execute(user, targets, ctx) : List[str]
+    }
+
+    abstract class TurnOrderStrategy <<abstract>> {
+        + {abstract} determine_order(combatants) : List[Combatant]
+    }
+
+    abstract class Item <<abstract>> {
+        + {abstract} name : str
+        + {abstract} description : str
+        --
+        + {abstract} use(owner, ctx) : List[str]
+    }
+
+    class BattleContext {
+        + round_number : int
+        + allies : List[Combatant]
+        + enemies : List[Combatant]
+        + log : Callable
+    }
+
+    class ActionDecision {
+        + action : Action
+        + targets : List[Combatant]
+    }
+}
+
+
+' ============================================================================
+'  LAYER 2 — DOMAIN / CONCRETE ENTITIES
+' ============================================================================
+package "Domain Layer — Combatants (combatants.py)" <<Rectangle>> #E8F5E9 {
+
+    class PlayerCombatant <<concrete>> {
+        + COOLDOWN_TURNS : int = 3
+        + special_skill : Action
+        - _cooldown : int
+        - _items : List[Item]
+        - _action_callback : Callable
+        --
+        + items : List[Item]
+        + cooldown : int
+        + skill_ready : bool
+        + add_item(item: Item) : void
+        + remove_item(item: Item) : void
+        + start_cooldown() : void
+        + tick_cooldown() : void
+        + set_action_callback(callback) : void
+        + choose_action(allies, enemies, ctx) : ActionDecision
+    }
+
+    class Warrior <<concrete>> {
+        HP=260, ATK=40, DEF=20, SPD=30
+        skill = ShieldBash
+    }
+
+    class Wizard <<concrete>> {
+        HP=200, ATK=50, DEF=10, SPD=20
+        skill = ArcaneBlast
+    }
+
+    class EnemyCombatant <<concrete>> {
+        + choose_action(allies, enemies, ctx) : ActionDecision
+        .. AI: always BasicAttack ..
+    }
+
+    class Goblin <<concrete>> {
+        HP=55, ATK=35, DEF=15, SPD=25
+    }
+
+    class Wolf <<concrete>> {
+        HP=40, ATK=45, DEF=5, SPD=35
+    }
+}
+
+package "Domain Layer — Actions (actions.py, skills.py)" <<Rectangle>> #E3F2FD {
+
+    class BasicAttack <<concrete>> {
+        + name = "Basic Attack"
+        + execute(user, targets, ctx) : List[str]
+    }
+
+    class Defend <<concrete>> {
+        + name = "Defend"
+        + execute(user, targets, ctx) : List[str]
+    }
+
+    class UseItem <<concrete>> {
+        - _item : Item
+        + execute(user, targets, ctx) : List[str]
+    }
+
+    class SpecialSkillAction <<concrete>> {
+        - _skill : Action
+        + execute(user, targets, ctx) : List[str]
+    }
+
+    class ShieldBash <<concrete>> {
+        + name = "Shield Bash"
+        + execute(user, targets, ctx) : List[str]
+        .. dmg + StunEffect ..
+    }
+
+    class ArcaneBlast <<concrete>> {
+        + name = "Arcane Blast"
+        + execute(user, targets, ctx) : List[str]
+        .. AoE + ATK bonus per kill ..
+    }
+}
+
+package "Domain Layer — Effects (effects.py)" <<Rectangle>> #F3E5F5 {
+
+    class StunEffect <<concrete>> {
+        - _remaining : int
+        + name = "Stun"
+        + on_turn_start(): skip turn
+    }
+
+    class DefenseBoost <<concrete>> {
+        - _remaining : int
+        + defense_bonus : int
+        + name = "DefenseBoost"
+    }
+
+    class SmokeBombEffect <<concrete>> {
+        - _remaining : int
+        + name = "SmokeBomb"
+        + on_turn_start(): 0 incoming dmg
+    }
+}
+
+package "Domain Layer — Items (items.py)" <<Rectangle>> #FFF9C4 {
+
+    class Potion <<concrete>> {
+        + name = "Potion"
+        + use(): heal 100 HP
+    }
+
+    class PowerStone <<concrete>> {
+        + name = "Power Stone"
+        + use(): trigger special skill
+    }
+
+    class SmokeBomb <<concrete>> {
+        + name = "Smoke Bomb"
+        + use(): apply SmokeBombEffect
+    }
+}
+
+
+' ============================================================================
+'  LAYER 3 — CONTROL / ENGINE
+' ============================================================================
+package "Control Layer (engine.py, turn_order.py)" <<Rectangle>> #FFF3E0 {
+
+    class BattleEngine <<engine>> {
+        - _turn_strategy : TurnOrderStrategy
+        - _log : Callable
+        --
+        + run_battle(players, enemies) : bool
+        - _tick_effects(combatant) : void
+        - _print_status(players, enemies) : void
+    }
+
+    class SpeedBasedTurnOrder <<concrete>> {
+        + determine_order(combatants) : List[Combatant]
+        .. sorted by speed descending ..
+    }
+}
+
+
+' ============================================================================
+'  LAYER 4 — BOUNDARY / UI
+' ============================================================================
+package "Boundary Layer (cli.py, main.py)" <<Rectangle>> #FCE4EC {
+
+    class CLI <<boundary>> {
+        + select_character() : PlayerCombatant
+        + select_item() : Item
+        + player_action_callback(player, ...) : ActionDecision
+        + show_level_intro(...)
+        + show_backup_wave(...)
+        + show_level_victory(...)
+        + show_game_victory()
+        + show_game_over()
+        - _choose_target(enemies) : Combatant
+        - _choose_item(player) : Item
+    }
+
+    class LevelDefinition {
+        + number : int
+        + name : str
+        + initial_wave_factory : Callable
+        + backup_wave_factory : Callable | None
+    }
+}
+
+
+' ============================================================================
+'  RELATIONSHIPS
+' ============================================================================
+
+' Inheritance
+Combatant <|-- PlayerCombatant
+PlayerCombatant <|-- Warrior
+PlayerCombatant <|-- Wizard
+Combatant <|-- EnemyCombatant
+EnemyCombatant <|-- Goblin
+EnemyCombatant <|-- Wolf
+
+Action <|-- BasicAttack
+Action <|-- Defend
+Action <|-- UseItem
+Action <|-- SpecialSkillAction
+Action <|-- ShieldBash
+Action <|-- ArcaneBlast
+
+StatusEffect <|-- StunEffect
+StatusEffect <|-- DefenseBoost
+StatusEffect <|-- SmokeBombEffect
+
+Item <|-- Potion
+Item <|-- PowerStone
+Item <|-- SmokeBomb
+
+TurnOrderStrategy <|-- SpeedBasedTurnOrder
+
+' Associations
+Combatant "1" *-- "0..*" StatusEffect : _status_effects
+PlayerCombatant "1" o-- "0..*" Item : _items
+PlayerCombatant "1" --> "1" Action : special_skill
+ActionDecision "1" --> "1" Action : action
+ActionDecision "1" --> "1..*" Combatant : targets
+
+BattleEngine "1" --> "1" TurnOrderStrategy : _turn_strategy
+BattleEngine ..> Combatant : <<uses>>
+BattleEngine ..> BattleContext : <<creates>>
+BattleEngine ..> ActionDecision : <<receives>>
+
+UseItem "1" --> "1" Item : _item
+SpecialSkillAction "1" --> "1" Action : _skill
+
+CLI ..> BattleEngine : <<configures>>
+CLI ..> PlayerCombatant : <<creates & injects callback>>
+CLI ..> LevelDefinition : <<iterates>>
+
+ShieldBash ..> StunEffect : <<creates>>
+Defend ..> DefenseBoost : <<creates>>
+SmokeBomb ..> SmokeBombEffect : <<creates>>
+
+
+' ============================================================================
+'  OO PRINCIPLE ANNOTATIONS
+' ============================================================================
+
+note right of Combatant
+  **ENCAPSULATION**
+  All stats (_hp, _base_attack, etc.)
+  are private with read-only properties.
+  defense is a computed property that
+  aggregates active StatusEffect bonuses.
+end note
+
+note left of PlayerCombatant
+  **POLYMORPHISM (choose_action)**
+  PlayerCombatant delegates to an
+  injected callback (CLI).
+  EnemyCombatant returns BasicAttack.
+  BattleEngine calls choose_action()
+  without knowing the concrete type.
+end note
+
+note bottom of Action
+  **POLYMORPHISM (Strategy Pattern)**
+  Each concrete Action implements
+  execute() differently. The Engine
+  calls decision.action.execute()
+  polymorphically.
+end note
+
+note bottom of StatusEffect
+  **POLYMORPHISM (Template Method)**
+  Each concrete effect implements
+  on_apply/on_turn_start/tick etc.
+  The Engine loops over effects
+  without knowing concrete types.
+end note
+
+note right of BattleEngine
+  **DIP — Dependency Inversion**
+  Constructor accepts TurnOrderStrategy
+  (abstraction). run_battle() operates
+  on List[Combatant] (abstraction).
+  Never imports concrete combatant or
+  action classes.
+end note
+
+@enduml
